@@ -1,0 +1,1 @@
+# MySQL_educational_projects
