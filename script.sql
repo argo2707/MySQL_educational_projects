@@ -235,10 +235,159 @@ end if;
 end;//
 delimiter ;
 #Демонстрация процедуры
+call graf_autor("1","2","3","4");
+SELECT * FROM grafs.graf;
+SELECT * FROM grafs.autors;
 
+/*При удалении вершины удаляется граф*/
+delimiter //
+Create procedure del_top (id_tp int)
+Begin
+declare id_gr_del int;
+select id_graf into id_gr_del from top where id_top=id_tp;
+delete from top where id_top=id_tp;
+if not exists(select* from top where id_graf=id_gr_del)
+	then delete from graf where id_graf=id_gr_del;
+	end if;
+end;//
+delimiter ;
+#Демонстрация процедуры
+call del_top(24);
+	
+/*При удалении графа удаляются все соединения, ребра и вершины связанные с ним*/
+delimiter //
+Create procedure del_gr_cascade (id_gr_del int)
+Begin
+delete from edge where id_edge in
+(select t_e.id_edge from top
+inner join top_edge on top_edge.id_top=top.id_top
+inner join top_edge as t_e on t_e.id_edge=top_edge.id_edge
+ where id_graf=id_gr_del);
+	delete from top where id_gr_del=id_graf;
+	delete from graf where id_graf=id_gr_del;
+end;//
+delimiter ;
+#Демонстрация процедуры
+call del_gr_cascade(11);
 
+/*Максимальное значение ширины вершин*/
+delimiter //
+create function max_width() returns int deterministic
+begin
+declare mx_w int;
+set mx_w=(select ifnull(max(width),0) from top);
+return mx_w;
+end;//
+delimiter ;
+#Демонстрация процедуры
+select max_width();
+	
+/*Статистика во временной таблице для каждого графа: количество вершин,
+	количество ребер, среднее количество вершин.*/
+delimiter //
+Create procedure gr_statis ()
+Begin
+create temporary table if not exists gr_stat
+( id_stat int auto_increment primary key,
+id_gr int,
+count_top int,
+count_edge int,
+avg_top double default 0);
+insert into gr_stat(id_gr,count_top,count_edge)
+select distinct graf.id_graf,count(DISTINCT top.id_top) as ctop,count(DISTINCT top_edge.id_edge) as cedge
+from graf
+left join top on graf.id_graf=top.id_graf
+left join top_edge on top.id_top=top_edge.id_top
+group by graf.id_graf;
+SET SQL_SAFE_UPDATES = 0;
+
+update gr_stat set avg_top=
+(select distinct avg(av) from
+(select distinct count(id_top) as av  from graf
+left join top on top.id_graf=graf.id_graf
+group by graf.id_graf)q);
+
+select * from gr_stat;
+drop table gr_stat;
+end;//
+delimiter ;
+#Демонстрация процедуры
+call gr_statis();
 #------------------------------------------------
 
-#------------------------------
+#--------------------Триггеры--------------------
+/*Before delete (при удалении графа удаляется вершина и ребро)*/
+delimiter //
+create trigger my_triger
+before delete on graf for each row
+begin
+delete from edge where id_edge in
+(select t_e.id_edge from top
+inner join top_edge on top_edge.id_top=top.id_top
+inner join top_edge as t_e on t_e.id_edge=top_edge.id_edge
+ where id_graf=OLD.id_graf);
+delete from top where id_graf=OLD.id_graf;
+end//
+delimiter ;
 
+/*After delete (при удалении графа уменьшается количество графов в таблице автор)*/
+delimiter //
+create trigger my_triger2
+after delete on graf for each row
+begin
+update autors 
+set count_graf=count_graf-1
+where id_autor=old.id_autor;
+end//
+delimiter ; 
 
+/*After insert (при добавлении графа увеличивается количество графов в таблице автор)*/
+delimiter //
+create trigger my_triger3
+after insert on graf for each row
+begin
+update autors 
+set count_graf=count_graf+1
+where id_autor=new.id_autor;
+end//
+delimiter ;
+
+/*Before insert (при добавлении соединения добавляется и вершина)*/
+delimiter //
+create trigger my_triger4
+before insert on top_edge for each row
+begin
+if not exists(select* from edge where new.id_edge=id_edge)
+then insert edge (id_edge)
+values (new.id_edge);
+end if;
+end//
+delimiter ;
+
+/*Before update (при обновлении вершины высота и ширина должны быть больше 0)*/
+delimiter //
+create trigger my_triger5
+before update on top for each row
+begin
+if (new.width<=0) or (new.height<=0)
+then
+Signal sqlstate '45000' set message_text ='Error! An attempt to insert an incorrect value into the table.';
+end if;
+end//
+delimiter ;
+
+/*After update (при  обновлении вершины запоминаются старые и новые данные в таблицу log_top)*/
+DELIMITER //
+CREATE TRIGGER my_triger6 
+AFTER UPDATE ON top FOR EACH ROW
+BEGIN
+INSERT INTO log_top(id_top,name_top,coordinat_x,coordinat_y,width,
+height,id_graf,operation_type,operation_date,operation_user)
+VALUES (OLD.id_top,OLD.name_top, OLD.coordinat_x, OLD.coordinat_y,
+OLD.width, OLD.height, OLD.id_graf, 'UPDATE_OLD', NOW(), USER());
+INSERT INTO log_top (id_top,name_top,coordinat_x,coordinat_y,width,
+height,id_graf,operation_type,operation_date,operation_user)
+VALUES (NEW.id_top,OLD.name_top, NEW.coordinat_x, NEW.coordinat_y,
+NEW.width, NEW.height, NEW.id_graf,'UPDATE_NEW', NOW(), USER());
+END//
+delimiter ;	
