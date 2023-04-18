@@ -1,3 +1,5 @@
+CREATE DATABASE IF NOT EXISTS grafs;
+
 use grafs; #подключение к БД
 #---------------Создание таблиц------------------
 create table autors (
