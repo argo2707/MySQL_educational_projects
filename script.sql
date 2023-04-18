@@ -196,11 +196,49 @@ where ad.id_top is null;
 #------------------------------------------------
 
 #---------------Хранимые процедуры---------------
+/*При добавлении графа добавляется и автор*/
+delimiter //
+Create procedure graf_autor (autor_n varchar(20),autor_s varchar(20)
+,autor_m varchar(20), name_g varchar(20))
+Begin
+declare id_gr_new int;
+declare id_au_new int;
+if exists(select * from autors where autor_n=name and
+autor_s=surname and autor_m=middle_name)
+	then select id_autor into id_au_new from autors 
+	where autor_n=name and autor_s=surname and autor_m=middle_name;
+	else   begin
+	insert into autors(id_autor,name,surname,middle_name) values 
+	(id_au_new, autor_n,autor_s,autor_m);
+    set id_au_new=(select last_insert_id());
+		   end;
+	end if;
+insert into graf (id_graf,name_graf,id_autor) 
+values (id_gr_new,name_g,id_au_new);
+end;//
+delimiter ;
+#Демонстрация процедуры
+call graf_autor("1","2","3","4");
+SELECT * FROM grafs.graf;
+SELECT * FROM grafs.autors;
 
+/*При удалении вершины удаляется граф*/
+delimiter //
+Create procedure del_top (id_tp int)
+Begin
+declare id_gr_del int;
+select id_graf into id_gr_del from top where id_top=id_tp;
+delete from top where id_top=id_tp;
+if not exists(select* from top where id_graf=id_gr_del)
+then delete from graf where id_graf=id_gr_del;
+end if;
+end;//
+delimiter ;
+#Демонстрация процедуры
 
 
 #------------------------------------------------
 
-#---------------Хранимые процедуры---------------
+#------------------------------
 
 
