@@ -232,23 +232,6 @@ declare id_gr_del int;
 select id_graf into id_gr_del from top where id_top=id_tp;
 delete from top where id_top=id_tp;
 if not exists(select* from top where id_graf=id_gr_del)
-then delete from graf where id_graf=id_gr_del;
-end if;
-end;//
-delimiter ;
-#Демонстрация процедуры
-call graf_autor("1","2","3","4");
-SELECT * FROM grafs.graf;
-SELECT * FROM grafs.autors;
-
-/*При удалении вершины удаляется граф*/
-delimiter //
-Create procedure del_top (id_tp int)
-Begin
-declare id_gr_del int;
-select id_graf into id_gr_del from top where id_top=id_tp;
-delete from top where id_top=id_tp;
-if not exists(select* from top where id_graf=id_gr_del)
 	then delete from graf where id_graf=id_gr_del;
 	end if;
 end;//
